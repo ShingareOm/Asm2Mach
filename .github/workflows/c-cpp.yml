@@ -1,0 +1,51 @@
+name: C/C++ CI for Asm2Mach
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Build Tools
+      run: sudo apt-get update && sudo apt-get install -y build-essential
+
+    - name: Configure Build (if applicable)
+      # If you don't use ./configure, you can skip or replace this step.
+      run: |
+        if [ -f configure ]; then
+          ./configure
+        fi
+
+    - name: Build with Make
+      run: make
+
+    - name: Run Tests (if applicable)
+      # Use 'make check' or 'make test' based on your Makefile targets
+      run: |
+        if make -q check >/dev/null 2>&1; then
+          make check
+        elif make -q test >/dev/null 2>&1; then
+          make test
+        fi
+
+    - name: Perform Distribution Check (optional)
+      run: |
+        if make -q distcheck >/dev/null 2>&1; then
+          make distcheck
+        fi
+
+    - name: Upload Executable (optional)
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Asm2Mach-Build
+        path: bin/asm2mach
