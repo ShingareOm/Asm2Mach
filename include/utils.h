@@ -69,8 +69,6 @@ void convertInstructionToOpcode(const char *instruction) {
 }
 
 
-
-
 void processLabels(FILE *asmFile, InstructionQueue *queue)
 {
     char buffer[MAX_INSTRUCTION_LEN];
@@ -78,7 +76,7 @@ void processLabels(FILE *asmFile, InstructionQueue *queue)
 
     while (fgets(buffer, MAX_INSTRUCTION_LEN, asmFile))
     {
-        buffer[strcspn(buffer, "\n")] = 0; 
+        buffer[strcspn(buffer, "\n")] = 0;
         removeComments(buffer);
 
         if (strlen(buffer) == 0)
@@ -86,11 +84,11 @@ void processLabels(FILE *asmFile, InstructionQueue *queue)
             continue;
         }
 
-        if (strchr(buffer, ':'))
+        if (strchr(buffer, ':')) 
         {
             char label[20];
             sscanf(buffer, "%s", label);
-            label[strlen(label) - 1] = 0;
+            label[strlen(label) - 1] = 0; 
             symbolTable[symbolTableSize].address = address;
             strcpy(symbolTable[symbolTableSize].label, label);
             symbolTableSize++;
@@ -99,12 +97,12 @@ void processLabels(FILE *asmFile, InstructionQueue *queue)
         else if (strstr(buffer, "DB") == NULL && strstr(buffer, "DW") == NULL &&
                  strstr(buffer, "RESB") == NULL && strstr(buffer, "RESW") == NULL)
         {
-            enqueue(queue, buffer); 
-            address++;
+            enqueue(queue, buffer);
         }
+
+        address++;
     }
 }
-
 
 
 void stripLabel(char *line)
@@ -224,7 +222,6 @@ void processDataDirectives(FILE *asmFile)
 }
 
 
-
 void removeComments(char *line)
 {
     char *commentStart = strchr(line, ';');
@@ -233,6 +230,8 @@ void removeComments(char *line)
         *commentStart = '\0';
     }
 }
+
+
 
 void displayQueue(InstructionQueue *queue)
 {
@@ -243,23 +242,37 @@ void displayQueue(InstructionQueue *queue)
     }
 }
 
-void displayDataSegment()
-{
-    printf("\nData Segment:\n");
-    if (dataSegmentSize == 0)
-    {
-        printf("Empty\n");
+
+void displayDataSegment() {
+    printf("\n====================================================\n");
+    printf("|                     DATA SEGMENT                 |\n");
+    printf("====================================================\n");
+    printf("|   Index   |                  Values (Hex)        |\n");
+    printf("----------------------------------------------------\n");
+
+    if (dataSegmentSize == 0) {
+        printf("|            No Data in the Segment                |\n");
+        printf("====================================================\n");
         return;
     }
 
-    for (int i = 0; i < dataSegmentSize; i++)
-    {
-        printf("0x%02X ", (unsigned char)dataSegment[i]);
-        if ((i + 1) % 16 == 0)
-        {
-            printf("\n"); 
+    int rowLimit = 6; // Number of bytes displayed per row
+    for (int i = 0; i < dataSegmentSize; i++) {
+        if (i % rowLimit == 0) {
+            printf("|  %5d    |", i);
+        }
+        printf("  0x%02X", dataSegment[i]);
+
+        // End of a row or the last element
+        if ((i + 1) % rowLimit == 0 || i == dataSegmentSize - 1) {
+            int padding = rowLimit - (i % rowLimit + 1);
+            while (padding-- > 0) {
+                printf("      "); // Add spaces for incomplete rows
+            }
+            printf("  |\n");
         }
     }
-    printf("\n");
+    printf("====================================================\n");
 }
+
 
