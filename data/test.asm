@@ -13,4 +13,4 @@ DATA_SEG:
     RESW 2                 ; Reserve 2 words
 
 END:
-    HLT                    ; Halt the program
+    HLT                    ; Halt the program
