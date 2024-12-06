@@ -24,42 +24,52 @@ int resolveLabel(const char *label)
     return -1;
 }
 
-void convertInstructionToOpcode(const char *instruction)
-{
-    char mnemonic[10], operand1[10], operand2[10];
-    int numOperands = sscanf(instruction, "%s %[^,], %s", mnemonic, operand1, operand2);
+void convertInstructionToOpcode(const char *instruction) {
+    char mnemonic[10], operand1[20], operand2[20];
+    int numOperands = sscanf(instruction, "%s %s %s", mnemonic, operand1, operand2);
 
     char *opcode = fetchOpcode(mnemonic);
-    if (opcode == NULL)
-    {
+    if (!opcode) {
         printf("Error: Unknown mnemonic '%s'\n", mnemonic);
         return;
     }
 
-    if (strcmp(mnemonic, "JMP") == 0)
-    {
-        int labelAddress = resolveLabel(operand1);
-        if (labelAddress == -1)
-        {
-            printf("Error: Undefined label '%s'\n", operand1);
-            return;
+    printf("Opcode: %s ", opcode);
+
+    if (numOperands == 2) {
+        if (strcmp(operand1, "END") == 0) {
+            printf("00\n");
+        } else if (operand1[0] == '[') {
+            int address;
+            sscanf(operand1, "[%d]", &address);
+            printf("%04X\n", address);
+        } else if (isdigit(operand1[0])) {
+            int value;
+            sscanf(operand1, "%d", &value);
+            printf("%02X\n", value);
+        } else {
+            int labelAddress = resolveLabel(operand1);
+            if (labelAddress != -1) {
+                printf("%04X\n", labelAddress);
+            } else {
+                printf("Error: Unresolved operand '%s'\n", operand1);
+            }
         }
-        printf("Opcode: %s | Operand1 (resolved): %d\n", opcode, labelAddress);
-    }
-    else
-    {
-        printf("Opcode: %s ", opcode);
-        if (numOperands >= 2)
-        {
-            printf("| Operand1: %s", operand1);
+    } else if (numOperands == 3) {
+        if (isdigit(operand2[0])) {
+            int value;
+            sscanf(operand2, "%d", &value);
+            printf("%s %02X\n", operand1, value);
+        } else {
+            printf("%s %s\n", operand1, operand2);
         }
-        if (numOperands == 3)
-        {
-            printf(" | Operand2: %s", operand2);
-        }
+    } else {
         printf("\n");
     }
 }
+
+
+
 
 void processLabels(FILE *asmFile, InstructionQueue *queue)
 {
@@ -68,9 +78,7 @@ void processLabels(FILE *asmFile, InstructionQueue *queue)
 
     while (fgets(buffer, MAX_INSTRUCTION_LEN, asmFile))
     {
-
-        buffer[strcspn(buffer, "\n")] = 0;
-
+        buffer[strcspn(buffer, "\n")] = 0; 
         removeComments(buffer);
 
         if (strlen(buffer) == 0)
@@ -88,27 +96,40 @@ void processLabels(FILE *asmFile, InstructionQueue *queue)
             symbolTableSize++;
             printf("Label found: %s at address %d\n", label, address);
         }
-        else
+        else if (strstr(buffer, "DB") == NULL && strstr(buffer, "DW") == NULL &&
+                 strstr(buffer, "RESB") == NULL && strstr(buffer, "RESW") == NULL)
         {
-
-            enqueue(queue, buffer);
+            enqueue(queue, buffer); 
+            address++;
         }
-
-        address++;
     }
 }
+
+
+
+void stripLabel(char *line)
+{
+    char *colon = strchr(line, ':');
+    if (colon != NULL)
+    {
+        memmove(line, colon + 1, strlen(colon + 1) + 1);
+    }
+}
+
+
+
+
 
 void processDataDirectives(FILE *asmFile)
 {
     char buffer[MAX_INSTRUCTION_LEN];
 
+    fseek(asmFile, 0, SEEK_SET); 
     dataSegmentSize = 0;
 
     while (fgets(buffer, MAX_INSTRUCTION_LEN, asmFile))
     {
-
-        buffer[strcspn(buffer, "\n")] = 0;
-
+        buffer[strcspn(buffer, "\n")] = 0; 
         removeComments(buffer);
 
         if (strlen(buffer) == 0)
@@ -116,43 +137,93 @@ void processDataDirectives(FILE *asmFile)
             continue;
         }
 
-        if (strstr(buffer, "DB") != NULL)
+        char *ptr = buffer;
+        while (isspace(*ptr)) ptr++;
+
+        if (strchr(ptr, ':'))
         {
-            unsigned char value;
-            char *token = strtok(buffer + 2, ",");
+            ptr = strchr(ptr, ':') + 1;
+            while (isspace(*ptr)) ptr++;
+        }
+
+        if (strstr(ptr, "DB") == ptr)
+        {
+            char *token = strtok(ptr + 2, ",");
             while (token != NULL)
             {
-                sscanf(token, "0x%hhx", &value);
-                dataSegment[dataSegmentSize++] = value;
+                unsigned int value;
+                if (sscanf(token, " 0x%x", &value) == 1) 
+                {
+                    dataSegment[dataSegmentSize++] = (unsigned char)value;
+                }
+                else if (sscanf(token, " %d", &value) == 1) 
+                {
+                    dataSegment[dataSegmentSize++] = (unsigned char)value;
+                }
+                else
+                {
+                    printf("Error: Invalid DB value '%s'\n", token);
+                }
                 token = strtok(NULL, ",");
             }
         }
-        else if (strstr(buffer, "DW") != NULL)
+        else if (strstr(ptr, "DW") == ptr)
         {
-            unsigned short value;
-            char *token = strtok(buffer + 2, ",");
+            char *token = strtok(ptr + 2, ",");
             while (token != NULL)
             {
-                sscanf(token, "%hx", &value);
-                dataSegment[dataSegmentSize++] = (unsigned char)(value & 0xFF);
-                dataSegment[dataSegmentSize++] = (unsigned char)((value >> 8) & 0xFF);
+                unsigned int value;
+                if (sscanf(token, " 0x%x", &value) == 1) 
+                {
+                    dataSegment[dataSegmentSize++] = (unsigned char)(value & 0xFF);
+                    dataSegment[dataSegmentSize++] = (unsigned char)((value >> 8) & 0xFF);
+                }
+                else if (sscanf(token, " %d", &value) == 1) 
+                {
+                    dataSegment[dataSegmentSize++] = (unsigned char)(value & 0xFF); 
+                    dataSegment[dataSegmentSize++] = (unsigned char)((value >> 8) & 0xFF); 
+                }
+                else
+                {
+                    printf("Error: Invalid DW value '%s'\n", token);
+                }
                 token = strtok(NULL, ",");
             }
         }
-        else if (strstr(buffer, "RESB") != NULL)
+        else if (strstr(ptr, "RESB") == ptr)
         {
             int bytesToReserve;
-            sscanf(buffer + 4, "%d", &bytesToReserve);
-            dataSegmentSize += bytesToReserve;
+            if (sscanf(ptr + 4, "%d", &bytesToReserve) == 1) 
+            {
+                for (int i = 0; i < bytesToReserve; i++)
+                {
+                    dataSegment[dataSegmentSize++] = 0x00;
+                }
+            }
+            else
+            {
+                printf("Error: Invalid RESB size\n");
+            }
         }
-        else if (strstr(buffer, "RESW") != NULL)
+        else if (strstr(ptr, "RESW") == ptr)
         {
             int wordsToReserve;
-            sscanf(buffer + 4, "%d", &wordsToReserve);
-            dataSegmentSize += wordsToReserve * 2;
+            if (sscanf(ptr + 4, "%d", &wordsToReserve) == 1) 
+            {
+                for (int i = 0; i < wordsToReserve * 2; i++)
+                {
+                    dataSegment[dataSegmentSize++] = 0x00; 
+                }
+            }
+            else
+            {
+                printf("Error: Invalid RESW size\n");
+            }
         }
     }
 }
+
+
 
 void removeComments(char *line)
 {
@@ -175,9 +246,20 @@ void displayQueue(InstructionQueue *queue)
 void displayDataSegment()
 {
     printf("\nData Segment:\n");
+    if (dataSegmentSize == 0)
+    {
+        printf("Empty\n");
+        return;
+    }
+
     for (int i = 0; i < dataSegmentSize; i++)
     {
-        printf("0x%02X ", dataSegment[i]);
+        printf("0x%02X ", (unsigned char)dataSegment[i]);
+        if ((i + 1) % 16 == 0)
+        {
+            printf("\n"); 
+        }
     }
     printf("\n");
 }
+
