@@ -115,9 +115,6 @@ void stripLabel(char *line)
 }
 
 
-
-
-
 void processDataDirectives(FILE *asmFile)
 {
     char buffer[MAX_INSTRUCTION_LEN];
